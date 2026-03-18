@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資金繰りシミュレーター | キャッシュフロー見える化ツール</title>
+    
+    <!-- Google Fonts: Noto Sans JP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        main: '#1A3A5C',   // 紺
+                        accent: '#2EB8A0', // ティール
+                        warning: '#E05C5C',// 赤
+                        caution: '#F5A623',// オレンジ
+                        textmain: '#2C2C2C'// テキスト
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Chart.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            color: #2C2C2C;
+            background-color: #F8FAFC;
+        }
+        /* 数字入力のスピナーを非表示にしてスッキリさせる */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 600;
+        }
+        
+        .step-active {
+            color: #2EB8A0;
+            font-weight: bold;
+        }
+        .step-active .step-icon {
+            background-color: #2EB8A0;
+            color: white;
+            border-color: #2EB8A0;
+        }
+        .step-done .step-icon {
+            background-color: #1A3A5C;
+            color: white;
+            border-color: #1A3A5C;
+        }
+        
+        /* 印刷用スタイル */
+        @media print {
+            body { background-color: white !important; }
+            .no-print { display: none !important; }
+            .print-shadow-none { box-shadow: none !important; border: 1px solid #e2e8f0; }
+            canvas { max-width: 100% !important; height: auto !important; }
+            .page-break { page-break-before: always; }
+        }
+
+        /* アニメーション */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ダークモード用スタイル（既存のTailwindクラスを強制上書きして対応） */
+        body.dark-mode { background-color: #0f172a; color: #f1f5f9; }
+        body.dark-mode .bg-white { background-color: #1e293b !important; }
+        body.dark-mode .bg-gray-100 { background-color: #334155 !important; }
+        body.dark-mode .bg-gray-50 { background-color: #1e293b !important; }
+        body.dark-mode .text-gray-700, body.dark-mode .text-gray-600 { color: #cbd5e1 !important; }
+        body.dark-mode .text-gray-800, body.dark-mode .text-gray-900 { color: #f8fafc !important; }
+        body.dark-mode .border-gray-200, body.dark-mode .border-gray-300 { border-color: #475569 !important; }
+        body.dark-mode input, body.dark-mode select { background-color: #334155; color: #f1f5f9; border-color: #475569; }
+        body.dark-mode .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1) !important; border-color: rgba(59, 130, 246, 0.2) !important; }
+        body.dark-mode .bg-red-50 { background-color: rgba(239, 68, 68, 0.1) !important; border-color: rgba(239, 68, 68, 0.2) !important; }
+        body.dark-mode th { background-color: #334155 !important; color: #f1f5f9 !important; }
+        body.dark-mode td { background-color: #1e293b !important; border-color: #475569 !important; }
+        body.dark-mode .hover\:bg-gray-50:hover { background-color: #334155 !important; }
+        body.dark-mode .bg-gray-800 { background-color: #1e293b !important; }
+        body.dark-mode .filter.blur-\[3px\] { background-color: #1e293b !important; }
+        body.dark-mode .bg-gradient-to-b { background-image: linear-gradient(to bottom, rgba(30, 41, 59, 0.7), rgba(30, 41, 59, 0.95)) !important; }
+        
+        /* ドロップダウンのアニメーション */
+        .dropdown-enter { animation: dropDown 0.2s ease-out forwards; transform-origin: top right; }
+        @keyframes dropDown { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Header -->
+    <header class="bg-main text-white shadow-md print-shadow-none no-print relative z-50">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-chart-line text-2xl text-accent"></i>
+                <h1 class="text-xl font-bold tracking-wider">資金繰りシミュレーター</h1>
+            </div>
+            
+            <!-- 追加：使い方 ＆ 設定メニュー -->
+            <div class="flex items-center gap-5 relative">
+                <!-- 使い方ボタン -->
+                <button onclick="openHelpModal()" class="text-white hover:text-accent transition-colors flex items-center gap-1">
+                    <i class="fas fa-question-circle text-xl"></i>
+                    <span class="hidden md:inline text-sm font-bold">使い方</span>
+                </button>
+                
+                <!-- 設定ボタン -->
+                <button id="settings-btn" onclick="toggleSettings(event)" class="text-white hover:text-accent transition-colors">
+                    <i class="fas fa-cog text-xl"></i>
+                </button>
+                
+                <!-- 設定ドロップダウン -->
+                <div id="settings-dropdown" class="hidden absolute top-full right-0 mt-3 w-56 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden text-gray-800 z-50">
+                    <div class="p-4 border-b border-gray-100">
+                        <span class="text-xs font-bold text-gray-500 block mb-3"><i class="fas fa-palette mr-1"></i> 色合い</span>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-bold" id="theme-label">ライトモード</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="theme-toggle" class="sr-only peer" onchange="toggleTheme()">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-main"></div>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="p-2 bg-gray-50">
+                        <button onclick="loadDemoData()" class="w-full text-left px-3 py-2 text-xs font-bold text-gray-400 hover:text-accent hover:bg-white rounded transition-colors">
+                            <i class="fas fa-magic w-4"></i> デモデータを入力
+                        </button>
+                        <button onclick="confirmClear()" class="w-full text-left px-3 py-2 text-xs font-bold text-gray-400 hover:text-warning hover:bg-white rounded transition-colors mt-1">
+                            <i class="fas fa-trash-alt w-4"></i> 入力データをクリア
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- 印刷用ヘッダー（画面では非表示） -->
+    <div class="hidden print:block text-center py-4 border-b-2 border-main mb-6">
+        <h1 class="text-2xl font-bold text-main">資金繰りシミュレーション レポート</h1>
+        <p class="text-sm text-gray-500 mt-1" id="print-date"></p>
+    </div>
+
+    <main class="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
+        
+        <!-- STEP Navigator -->
+        <div class="mb-8 no-print" id="step-navigator">
+            <div class="flex items-center justify-between relative">
+                <div class="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 -z-10"></div>
+                
+                <!-- Step 1 -->
+                <div class="flex flex-col items-center step-item" id="nav-step1">
+                    <div class="step-icon w-10 h-10 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 shadow-sm transition-colors duration-300">1</div>
+                    <span class="text-xs mt-2 text-gray-500 font-medium">基本情報</span>
+                </div>
+                <!-- Step 2 -->
+                <div class="flex flex-col items-center step-item" id="nav-step2">
+                    <div class="step-icon w-10 h-10 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 shadow-sm transition-colors duration-300">2</div>
+                    <span class="text-xs mt-2 text-gray-500 font-medium">売上・入金</span>
+                </div>
+                <!-- Step 3 -->
+                <div class="flex flex-col items-center step-item" id="nav-step3">
+                    <div class="step-icon w-10 h-10 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 shadow-sm transition-colors duration-300">3</div>
+                    <span class="text-xs mt-2 text-gray-500 font-medium">支出・支払</span>
+                </div>
+                <!-- Step 4 -->
+                <div class="flex flex-col items-center step-item" id="nav-step4">
+                    <div class="step-icon w-10 h-10 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center font-bold text-gray-500 shadow-sm transition-colors duration-300">4</div>
+                    <span class="text-xs mt-2 text-gray-500 font-medium">結果・診断</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             STEP 1: 基本情報の入力
+        =========================================== -->
+        <section id="panel-step1" class="panel-section fade-in">
+            <div class="bg-white rounded-xl shadow-md p-6 md:p-10 print-shadow-none">
+                <h2 class="text-2xl font-bold text-main border-l-4 border-accent pl-3 mb-6">STEP1：基本情報の入力</h2>
+                
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">シミュレーション期間 <span class="text-white bg-warning text-xs px-2 py-1 rounded ml-2">必須</span></label>
+                        <select id="input-period" class="w-full md:w-1/2 p-4 text-lg border-2 border-gray-200 rounded-lg focus:border-accent focus:ring focus:ring-accent focus:ring-opacity-20 transition-colors">
+                            <option value="3">3ヶ月</option>
+                            <option value="6" selected>6ヶ月</option>
+                            <option value="12">12ヶ月</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">業種</label>
+                        <select id="input-industry" class="w-full md:w-1/2 p-4 text-lg border-2 border-gray-200 rounded-lg focus:border-accent focus:ring focus:ring-accent focus:ring-opacity-20 transition-colors">
+                            <option value="未選択">選択してください</option>
+                            <option value="製造業">製造業</option>
+                            <option value="飲食業">飲食業</option>
+                            <option value="小売業">小売業</option>
+                            <option value="サービス業">サービス業</option>
+                            <option value="その他">その他</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">現在の手元資金 <span class="text-xs text-gray-500 font-normal ml-2">※預金残高と現金の合計</span></label>
+                        <div class="flex items-center">
+                            <input type="number" id="input-initialCash" placeholder="0" class="w-full md:w-1/3 p-4 text-2xl text-right border-2 border-gray-200 rounded-lg focus:border-accent focus:ring focus:ring-accent focus:ring-opacity-20 transition-colors">
+                            <span class="ml-3 text-lg font-bold text-gray-600">万円</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-10 flex justify-end">
+                    <button onclick="goToStep(2)" class="bg-main hover:bg-[#122b46] text-white font-bold py-4 px-10 rounded-lg shadow-md transition-colors text-lg flex items-center gap-2">
+                        次へ（売上・入金情報の入力） <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             STEP 2: 月次売上・入金の入力
+        =========================================== -->
+        <section id="panel-step2" class="panel-section hidden fade-in">
+            <div class="bg-white rounded-xl shadow-md p-6 md:p-10 print-shadow-none">
+                <h2 class="text-2xl font-bold text-main border-l-4 border-accent pl-3 mb-6">STEP2：月次売上・入金の入力</h2>
+                
+                <div class="mb-8 p-5 bg-blue-50 rounded-lg border border-blue-100">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">基本の入金サイクル <span class="text-xs text-gray-500 font-normal ml-2">※売上が現金化されるタイミング</span></label>
+                    <select id="input-incomeCycle" class="w-full md:w-1/2 p-3 text-lg border-2 border-white rounded-lg shadow-sm focus:border-accent focus:outline-none">
+                        <option value="0">当月（現金商売など）</option>
+                        <option value="1" selected>翌月（一般的な掛売り）</option>
+                        <option value="2">翌々月</option>
+                    </select>
+                </div>
+
+                <div class="mb-4 flex justify-between items-end">
+                    <h3 class="text-lg font-bold text-gray-800">月別の予定額（万円）</h3>
+                    <button onclick="copyFirstRow('step2')" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition-colors">
+                        <i class="fas fa-copy mr-1"></i> 1ヶ月目の数値を全月にコピー
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse min-w-[600px]">
+                        <thead>
+                            <tr class="bg-gray-100 border-b-2 border-gray-300">
+                                <th class="p-3 text-left w-24">月</th>
+                                <th class="p-3 text-left">売上予定 <span class="text-xs text-gray-500 font-normal block">本業の売上</span></th>
+                                <th class="p-3 text-left">その他収入 <span class="text-xs text-gray-500 font-normal block">補助金・借入金など</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="step2-tbody">
+                            <!-- JSで動的生成 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-10 flex justify-between">
+                    <button onclick="goToStep(1)" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-4 px-8 rounded-lg transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i> 戻る
+                    </button>
+                    <button onclick="goToStep(3)" class="bg-main hover:bg-[#122b46] text-white font-bold py-4 px-10 rounded-lg shadow-md transition-colors text-lg flex items-center gap-2">
+                        次へ（支出・支払情報の入力） <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             STEP 3: 月次支出・支払いの入力
+        =========================================== -->
+        <section id="panel-step3" class="panel-section hidden fade-in">
+            <div class="bg-white rounded-xl shadow-md p-6 md:p-10 print-shadow-none">
+                <h2 class="text-2xl font-bold text-main border-l-4 border-accent pl-3 mb-6">STEP3：月次支出・支払いの入力</h2>
+                
+                <div class="mb-8 p-5 bg-red-50 rounded-lg border border-red-100">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">仕入・外注費の支払サイクル</label>
+                    <select id="input-paymentCycle" class="w-full md:w-1/2 p-3 text-lg border-2 border-white rounded-lg shadow-sm focus:border-accent focus:outline-none">
+                        <option value="0">当月（現金払いなど）</option>
+                        <option value="1" selected>翌月（一般的な買掛金）</option>
+                        <option value="2">翌々月</option>
+                    </select>
+                </div>
+
+                <div class="mb-4 flex justify-between items-end">
+                    <h3 class="text-lg font-bold text-gray-800">月別の予定額（万円）</h3>
+                    <button onclick="copyFirstRow('step3')" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded transition-colors">
+                        <i class="fas fa-copy mr-1"></i> 1ヶ月目の数値を全月にコピー
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse min-w-[800px]">
+                        <thead>
+                            <tr class="bg-gray-100 border-b-2 border-gray-300">
+                                <th class="p-3 text-left w-24">月</th>
+                                <th class="p-3 text-left">固定費 <span class="text-xs text-gray-500 font-normal block">家賃・人件費など毎月発生</span></th>
+                                <th class="p-3 text-left">変動費 <span class="text-xs text-gray-500 font-normal block">仕入・外注・広告費など</span></th>
+                                <th class="p-3 text-left">借入返済額 <span class="text-xs text-gray-500 font-normal block">毎月の元金+利息返済</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="step3-tbody">
+                            <!-- JSで動的生成 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-10 flex justify-between">
+                    <button onclick="goToStep(2)" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-4 px-8 rounded-lg transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i> 戻る
+                    </button>
+                    <button onclick="runSimulation()" class="bg-accent hover:bg-[#259b86] text-white font-bold py-4 px-10 rounded-lg shadow-lg transition-colors text-lg flex items-center gap-2 transform hover:scale-105">
+                        <i class="fas fa-magic"></i> 結果を見る
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             STEP 4: 結果・診断表示
+        =========================================== -->
+        <section id="panel-step4" class="panel-section hidden fade-in">
+            
+            <div class="flex justify-between items-center mb-6 no-print">
+                <button onclick="goToStep(3)" class="text-gray-600 hover:text-main font-bold py-2 px-4 rounded transition-colors">
+                    <i class="fas fa-arrow-left mr-1"></i> 入力に戻る
+                </button>
+                <button onclick="window.print()" class="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg shadow transition-colors flex items-center gap-2">
+                    <i class="fas fa-print"></i> レポートを印刷
+                </button>
+            </div>
+
+            <!-- 診断メッセージカード -->
+            <div id="diagnostic-card" class="mb-8 rounded-xl shadow-md p-6 border-l-8 print-shadow-none">
+                <h3 id="diag-title" class="text-xl font-bold mb-2 flex items-center gap-2"></h3>
+                <p id="diag-body" class="text-gray-700 font-medium"></p>
+                
+                <!-- 最も危険な月ピックアップ -->
+                <div id="danger-month-box" class="mt-4 hidden">
+                    <div class="inline-block bg-white bg-opacity-50 border border-current rounded p-3">
+                        <span class="text-sm font-bold">⚠️ 要注意ポイント：</span>
+                        <span id="danger-month-text" class="font-bold ml-1"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- グラフエリア -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8 print-shadow-none">
+                <h3 class="text-lg font-bold text-main mb-4"><i class="fas fa-chart-bar mr-2"></i>資金繰り推移グラフ</h3>
+                <div class="relative w-full h-[400px]">
+                    <canvas id="cfChart"></canvas>
+                </div>
+            </div>
+
+            <!-- サマリーテーブル -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8 print-shadow-none overflow-x-auto page-break">
+                <h3 class="text-lg font-bold text-main mb-4"><i class="fas fa-table mr-2"></i>月別サマリー（単位：万円）</h3>
+                <table class="w-full border-collapse text-sm md:text-base min-w-[700px]">
+                    <thead>
+                        <tr class="bg-main text-white">
+                            <th class="p-3 border border-gray-300 text-center">項目</th>
+                            <th class="p-3 border border-gray-300 text-right">初期</th>
+                            <!-- JSで月ヘッダー生成 -->
+                            <th id="th-months" class="p-0 border-0"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-tbody">
+                        <!-- JSで動的生成 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ==========================================
+                 有料版（Pro版）案内ブロック（無料版のみの表示）
+            =========================================== -->
+            <div class="mt-16 relative rounded-2xl overflow-hidden border border-gray-200 shadow-xl no-print">
+                <!-- ぼかし背景（プレビュー風） -->
+                <div class="p-8 filter blur-[3px] opacity-40 pointer-events-none bg-white select-none">
+                    <h4 class="font-bold text-xl mb-6 text-main"><i class="fas fa-robot text-accent mr-2"></i>AIによる経営改善アクションプラン</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="border border-gray-300 p-4 rounded-lg">
+                            <div class="h-6 bg-gray-300 rounded w-1/2 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                            <div class="h-4 bg-gray-200 rounded w-5/6 mb-2"></div>
+                            <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+                        </div>
+                        <div class="border border-gray-300 p-4 rounded-lg">
+                            <div class="h-6 bg-gray-300 rounded w-2/3 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                        </div>
+                        <div class="border border-gray-300 p-4 rounded-lg">
+                            <div class="h-6 bg-gray-300 rounded w-1/2 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-5/6 mb-2"></div>
+                            <div class="h-4 bg-gray-200 rounded w-4/5 mb-2"></div>
+                            <div class="h-4 bg-gray-200 rounded w-full"></div>
+                        </div>
+                    </div>
+                    <div class="mt-8 border border-gray-300 p-4 rounded-lg h-32 flex items-center justify-center">
+                        <div class="h-20 bg-gray-200 rounded w-full"></div>
+                    </div>
+                </div>
+
+                <!-- オーバーレイ案内 -->
+                <div class="absolute inset-0 bg-gradient-to-b from-white/70 to-white/95 z-10 flex flex-col items-center justify-center p-6 text-center">
+                    <span class="bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded-full mb-4 tracking-wider">Premium Feature</span>
+                    <h3 class="text-2xl md:text-3xl font-bold text-main mb-4 leading-tight">さらに高度な分析は<span class="text-accent">Pro版</span>で</h3>
+                    <ul class="text-gray-700 mb-8 font-medium text-left inline-block space-y-2">
+                        <li><i class="fas fa-check text-accent mr-2"></i> Claude AIによる「資金ショートリスクの詳細解説」</li>
+                        <li><i class="fas fa-check text-accent mr-2"></i> 状況に合わせた「経営改善アクションプラン」の自動提案</li>
+                        <li><i class="fas fa-check text-accent mr-2"></i> 複数月パターンの比較シミュレーション</li>
+                        <li><i class="fas fa-check text-accent mr-2"></i> 顧問先別のデータ保存・管理機能</li>
+                    </ul>
+                    <button onclick="openProModal()" class="bg-gradient-to-r from-main to-[#2a5682] text-white font-bold py-4 px-10 rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all flex items-center gap-2 text-lg border-2 border-transparent hover:border-white">
+                        Pro版の詳細を見る <i class="fas fa-lock text-sm opacity-80"></i>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 mt-auto print-shadow-none">
+        <div class="max-w-5xl mx-auto px-4 text-center">
+            <p class="text-sm text-gray-400 mb-2">※本シミュレーターの算出結果は入力値に基づく概算であり、将来の資金繰りを保証するものではありません。</p>
+            <p class="text-sm text-gray-400">正確な資金繰り計画や融資のご相談については、必ず担当の税理士にご確認ください。</p>
+            <div class="mt-6 text-xs text-gray-500">
+                &copy; 2026 Smile Plus Consulting All Rights Reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- Pro版案内モーダル -->
+    <div id="pro-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform scale-95 transition-transform duration-300" id="pro-modal-content">
+            <div class="bg-main p-6 text-center relative">
+                <button onclick="closeProModal()" class="absolute top-4 right-4 text-white hover:text-gray-300 text-xl"><i class="fas fa-times"></i></button>
+                <h3 class="text-2xl font-bold text-white">Pro版のご案内</h3>
+            </div>
+            <div class="p-8">
+                <p class="text-gray-700 font-medium mb-6 text-center">
+                    この機能は税理士事務所様向けの<br><span class="text-accent font-bold text-lg">Pro版プラン（月額制）</span>でご利用いただけます。
+                </p>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                    <h4 class="font-bold text-gray-800 border-b pb-2 mb-3">税理士事務所様向けメリット</h4>
+                    <ul class="text-sm text-gray-600 space-y-2">
+                        <li>・顧問先への付加価値提供ツールとして活用可能</li>
+                        <li>・AI生成レポートを自社ロゴ入りPDFで出力</li>
+                        <li>・クラウド上で複数顧問先のデータを一元管理</li>
+                    </ul>
+                </div>
+                <div class="text-center">
+                    <p class="text-sm text-gray-500 mb-4">詳細な料金プランや導入のご相談はお気軽にお問い合わせください。</p>
+                    <a href="mailto:info@example.com?subject=資金繰りシミュレーターPro版について" class="inline-block bg-accent hover:bg-[#259b86] text-white font-bold py-3 px-8 rounded-lg shadow transition-colors w-full">
+                        <i class="far fa-envelope mr-2"></i> お問い合わせ（メール）
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使い方・目的モーダル -->
+    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden transform scale-95 transition-transform duration-300" id="help-modal-content">
+            <div class="bg-main p-5 text-center relative">
+                <button onclick="closeHelpModal()" class="absolute top-4 right-4 text-white hover:text-gray-300 text-xl"><i class="fas fa-times"></i></button>
+                <h3 class="text-xl font-bold text-white"><i class="fas fa-question-circle mr-2"></i>このツールの目的と使い方</h3>
+            </div>
+            <div class="p-6 md:p-8 max-h-[75vh] overflow-y-auto">
+                <div class="mb-6">
+                    <h4 class="font-bold text-lg text-main border-b-2 border-accent pb-1 mb-3 inline-block">■ このツールの目的</h4>
+                    <p class="text-gray-700 leading-relaxed text-sm md:text-base">
+                        将来の「現金（キャッシュ）の出入り」を見える化し、<strong class="text-warning">資金ショート（手元資金が枯渇すること）のリスクを事前に察知する</strong>ためのシミュレーターです。<br>
+                        帳簿上が黒字であっても、入金より支払いが先行すると資金は不足します。このツールで危険な月をあらかじめ把握し、早めに金融機関への融資相談や支払いサイトの調整を行うことで、事業を安全に継続するための対策を練ることができます。
+                    </p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-lg text-main border-b-2 border-accent pb-1 mb-4 inline-block">■ 基本的な使い方</h4>
+                    <ul class="space-y-5 text-sm md:text-base text-gray-700">
+                        <li class="flex items-start">
+                            <span class="bg-main text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">1</span>
+                            <div>
+                                <strong class="block text-gray-900 mb-1">基本情報を入力する（STEP1）</strong>
+                                シミュレーションしたい期間と、現在手元にある「すぐに使える現金と預金」の合計額を入力します。
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="bg-main text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">2</span>
+                            <div>
+                                <strong class="block text-gray-900 mb-1">売上と入金の予定を入れる（STEP2）</strong>
+                                本業の売上と、それ以外の収入（借入など）を入力します。「入金サイクル」を選ぶことで、売上が立った月と実際に現金が入る月のズレを自動で計算します。
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="bg-main text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">3</span>
+                            <div>
+                                <strong class="block text-gray-900 mb-1">支出と支払いの予定を入れる（STEP3）</strong>
+                                固定費・変動費・借入返済を入力します。こちらも「支払サイクル」に合わせて実際の資金流出月が計算されます。
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="bg-main text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 flex-shrink-0">4</span>
+                            <div>
+                                <strong class="block text-gray-900 mb-1">結果グラフと診断を確認する（STEP4）</strong>
+                                「手元資金残高」の折れ線グラフがゼロを下回らないか確認します。マイナスになる月がある場合は赤く警告されますので、入力に戻って経費を削るか、収入を増やすシミュレーションを繰り返してください。
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="mt-8 text-center border-t border-gray-200 pt-6">
+                    <button onclick="closeHelpModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-10 rounded-lg transition-colors">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- データクリア確認モーダル -->
+    <div id="clear-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 text-center transform scale-95 transition-transform duration-300" id="clear-modal-content">
+            <i class="fas fa-exclamation-triangle text-5xl text-warning mb-4"></i>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">データをクリアしますか？</h3>
+            <p class="text-sm text-gray-600 mb-6">現在入力されている内容が<br>すべてリセットされます。（元に戻せません）</p>
+            <div class="flex justify-center gap-3">
+                <button onclick="closeClearModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition-colors">キャンセル</button>
+                <button onclick="executeClearData()" class="bg-warning hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg shadow transition-colors">クリアする</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- アプリケーションロジック -->
+    <script>
+        // 状態管理オブジェクト
+        const appState = {
+            step: 1,
+            data: {
+                period: 6,
+                industry: '未選択',
+                initialCash: 0,
+                incomeCycle: 1, // 0:当月, 1:翌月, 2:翌々月
+                sales: [],
+                otherIncome: [],
+                paymentCycle: 1, // 0:当月, 1:翌月, 2:翌々月
+                fixedCosts: [],
+                variableCosts: [],
+                debtRepayment: []
+            },
+            chartInstance: null
+        };
+
+        // 初期化処理
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            updateDateForPrint();
+            initTheme(); // テーマ初期化を追加
+            
+            // 入力項目の変更イベントを監視して保存
+            document.querySelectorAll('input, select').forEach(el => {
+                el.addEventListener('change', () => {
+                    syncFormToState();
+                    saveData();
+                });
+            });
+
+            // STEP1を表示
+            goToStep(1);
+        });
+
+        // 印刷用日付更新
+        function updateDateForPrint() {
+            const now = new Date();
+            document.getElementById('print-date').innerText = `作成日: ${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+        }
+
+        // localStorageからデータ読み込み
+        function loadData() {
+            const saved = localStorage.getItem('cashflow_sim_data');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    // 互換性チェック
+                    if(parsed.period) {
+                        appState.data = parsed;
+                    }
+                } catch(e) {
+                    console.error("データの読み込みに失敗しました", e);
+                }
+            }
+            initArrays();
+            syncStateToForm();
+        }
+
+        // localStorageへデータ保存
+        function saveData() {
+            localStorage.setItem('cashflow_sim_data', JSON.stringify(appState.data));
+        }
+
+        // 配列の長さを期間に合わせる
+        function initArrays() {
+            const p = parseInt(appState.data.period);
+            const resize = (arr, len) => {
+                let newArr = [...(arr || [])];
+                while(newArr.length < len) newArr.push('');
+                return newArr.slice(0, len);
+            };
+            appState.data.sales = resize(appState.data.sales, p);
+            appState.data.otherIncome = resize(appState.data.otherIncome, p);
+            appState.data.fixedCosts = resize(appState.data.fixedCosts, p);
+            appState.data.variableCosts = resize(appState.data.variableCosts, p);
+            appState.data.debtRepayment = resize(appState.data.debtRepayment, p);
+        }
+
+        // Stateの値をフォームに反映
+        function syncStateToForm() {
+            document.getElementById('input-period').value = appState.data.period;
+            document.getElementById('input-industry').value = appState.data.industry;
+            document.getElementById('input-initialCash').value = appState.data.initialCash || '';
+            document.getElementById('input-incomeCycle').value = appState.data.incomeCycle;
+            document.getElementById('input-paymentCycle').value = appState.data.paymentCycle;
+            // テーブルはステップ移動時に生成される
+        }
+
+        // フォームの値をStateに反映
+        function syncFormToState() {
+            appState.data.period = parseInt(document.getElementById('input-period').value);
+            appState.data.industry = document.getElementById('input-industry').value;
+            appState.data.initialCash = parseInt(document.getElementById('input-initialCash').value) || 0;
+            appState.data.incomeCycle = parseInt(document.getElementById('input-incomeCycle').value);
+            appState.data.paymentCycle = parseInt(document.getElementById('input-paymentCycle').value);
+            
+            initArrays(); // 期間が変わった場合の対応
+        }
+
+        // テーブルの入力値をStateに反映
+        function updateTableData(step, type, index, value) {
+            let val = parseInt(value) || 0;
+            if(value === '') val = ''; // 空欄許可
+            appState.data[type][index] = val;
+            saveData();
+        }
+
+        // ステップ遷移
+        function goToStep(stepNum) {
+            // 現在の入力値を確定
+            syncFormToState();
+            saveData();
+
+            appState.step = stepNum;
+
+            // パネルの表示切替
+            document.querySelectorAll('.panel-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`panel-step${stepNum}`).classList.remove('hidden');
+
+            // ナビゲーターの見た目更新
+            for(let i=1; i<=4; i++) {
+                const nav = document.getElementById(`nav-step${i}`);
+                nav.classList.remove('step-active', 'step-done');
+                if (i < stepNum) {
+                    nav.classList.add('step-done');
+                    nav.querySelector('.step-icon').innerHTML = '<i class="fas fa-check"></i>';
+                } else if (i === stepNum) {
+                    nav.classList.add('step-active');
+                    nav.querySelector('.step-icon').innerHTML = i;
+                } else {
+                    nav.querySelector('.step-icon').innerHTML = i;
+                }
+            }
+
+            // ステップごとの固有処理
+            if (stepNum === 2) {
+                generateTable2();
+            } else if (stepNum === 3) {
+                generateTable3();
+            }
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // STEP2: テーブル生成
+        function generateTable2() {
+            const tbody = document.getElementById('step2-tbody');
+            tbody.innerHTML = '';
+            for(let i=0; i<appState.data.period; i++) {
+                let salesVal = appState.data.sales[i] === '' ? '' : appState.data.sales[i];
+                let otherVal = appState.data.otherIncome[i] === '' ? '' : appState.data.otherIncome[i];
+                
+                tbody.innerHTML += `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                        <td class="p-3 font-bold text-center bg-gray-50 border-r border-gray-200">${i+1}ヶ月目</td>
+                        <td class="p-2"><input type="number" onchange="updateTableData(2, 'sales', ${i}, this.value)" value="${salesVal}" placeholder="0" class="w-full p-3 text-right border-2 border-gray-200 rounded focus:border-accent focus:outline-none"></td>
+                        <td class="p-2"><input type="number" onchange="updateTableData(2, 'otherIncome', ${i}, this.value)" value="${otherVal}" placeholder="0" class="w-full p-3 text-right border-2 border-gray-200 rounded focus:border-accent focus:outline-none"></td>
+                    </tr>
+                `;
+            }
+        }
+
+        // STEP3: テーブル生成
+        function generateTable3() {
+            const tbody = document.getElementById('step3-tbody');
+            tbody.innerHTML = '';
+            for(let i=0; i<appState.data.period; i++) {
+                let fixedVal = appState.data.fixedCosts[i] === '' ? '' : appState.data.fixedCosts[i];
+                let varVal = appState.data.variableCosts[i] === '' ? '' : appState.data.variableCosts[i];
+                let debtVal = appState.data.debtRepayment[i] === '' ? '' : appState.data.debtRepayment[i];
+
+                tbody.innerHTML += `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                        <td class="p-3 font-bold text-center bg-gray-50 border-r border-gray-200">${i+1}ヶ月目</td>
+                        <td class="p-2"><input type="number" onchange="updateTableData(3, 'fixedCosts', ${i}, this.value)" value="${fixedVal}" placeholder="0" class="w-full p-3 text-right border-2 border-gray-200 rounded focus:border-accent focus:outline-none"></td>
+                        <td class="p-2"><input type="number" onchange="updateTableData(3, 'variableCosts', ${i}, this.value)" value="${varVal}" placeholder="0" class="w-full p-3 text-right border-2 border-gray-200 rounded focus:border-accent focus:outline-none"></td>
+                        <td class="p-2"><input type="number" onchange="updateTableData(3, 'debtRepayment', ${i}, this.value)" value="${debtVal}" placeholder="0" class="w-full p-3 text-right border-2 border-gray-200 rounded focus:border-accent focus:outline-none"></td>
+                    </tr>
+                `;
+            }
+        }
+
+        // 1行目コピー機能
+        function copyFirstRow(stepId) {
+            const p = appState.data.period;
+            if (stepId === 'step2') {
+                const s = appState.data.sales[0];
+                const o = appState.data.otherIncome[0];
+                for(let i=1; i<p; i++) { appState.data.sales[i] = s; appState.data.otherIncome[i] = o; }
+                generateTable2();
+            } else if (stepId === 'step3') {
+                const f = appState.data.fixedCosts[0];
+                const v = appState.data.variableCosts[0];
+                const d = appState.data.debtRepayment[0];
+                for(let i=1; i<p; i++) { appState.data.fixedCosts[i] = f; appState.data.variableCosts[i] = v; appState.data.debtRepayment[i] = d; }
+                generateTable3();
+            }
+            saveData();
+        }
+
+        // シミュレーション実行（STEP4へ）
+        function runSimulation() {
+            syncFormToState();
+            saveData();
+            
+            const results = calculateCashFlow();
+            renderResults(results);
+            
+            goToStep(4);
+        }
+
+        // 資金繰り計算ロジック
+        function calculateCashFlow() {
+            const d = appState.data;
+            const period = parseInt(d.period);
+            let currentCash = parseInt(d.initialCash) || 0;
+            let results = [];
+
+            for (let i = 0; i < period; i++) {
+                // 【入金計算】
+                // サイクル考慮。過去分は1ヶ月目の数値をベースとする（簡易仕様）
+                let salesIndex = i - d.incomeCycle;
+                let salesAmount = 0;
+                if (salesIndex >= 0) {
+                    salesAmount = parseInt(d.sales[salesIndex]) || 0;
+                } else {
+                    // シミュレーション開始前の売掛金回収と仮定
+                    salesAmount = parseInt(d.sales[0]) || 0; 
+                }
+                let otherAmount = parseInt(d.otherIncome[i]) || 0;
+                let monthlyIncome = salesAmount + otherAmount;
+
+                // 【支出計算】
+                let fixedAmount = parseInt(d.fixedCosts[i]) || 0;
+                let debtAmount = parseInt(d.debtRepayment[i]) || 0;
+                
+                let varIndex = i - d.paymentCycle;
+                let varAmount = 0;
+                if (varIndex >= 0) {
+                    varAmount = parseInt(d.variableCosts[varIndex]) || 0;
+                } else {
+                    // シミュレーション開始前の買掛金支払と仮定
+                    varAmount = parseInt(d.variableCosts[0]) || 0;
+                }
+                let monthlyOutcome = fixedAmount + debtAmount + varAmount;
+
+                // 【残高計算】
+                currentCash = currentCash + monthlyIncome - monthlyOutcome;
+
+                results.push({
+                    month: i + 1,
+                    income: monthlyIncome,
+                    outcome: monthlyOutcome,
+                    balance: currentCash
+                });
+            }
+            return results;
+        }
+
+        // 結果描画
+        function renderResults(results) {
+            // 1. 診断メッセージの設定
+            setDiagnosticMessage(results);
+
+            // 2. グラフの描画
+            drawChart(results);
+
+            // 3. サマリーテーブルの描画
+            buildSummaryTable(results);
+        }
+
+        // 診断メッセージ判定
+        function setDiagnosticMessage(results) {
+            const card = document.getElementById('diagnostic-card');
+            const title = document.getElementById('diag-title');
+            const body = document.getElementById('diag-body');
+            const dangerBox = document.getElementById('danger-month-box');
+            const dangerText = document.getElementById('danger-month-text');
+            
+            // クラスリセット
+            card.className = "mb-8 rounded-xl shadow-md p-6 border-l-8 print-shadow-none fade-in";
+            dangerBox.classList.add('hidden');
+
+            let minBalance = Math.min(...results.map(r => r.balance));
+            let minusMonths = results.filter(r => r.balance < 0);
+            
+            let isContinuousMinus = false;
+            for(let i=0; i<results.length-1; i++){
+                if(results[i].balance < 0 && results[i+1].balance < 0) {
+                    isContinuousMinus = true; break;
+                }
+            }
+
+            if (minBalance >= 0) {
+                // 常にプラス
+                card.classList.add("bg-green-50", "border-green-500", "text-green-900");
+                title.innerHTML = '<i class="fas fa-check-circle text-green-600"></i> 資金繰りは安定しています';
+                body.innerText = "現在のシミュレーションでは資金ショートのリスクは見られません。余剰資金を活用した次の投資タイミングや、借入金の繰り上げ返済などを検討しましょう。";
+            } else if (isContinuousMinus) {
+                // 連続マイナス
+                card.classList.add("bg-red-50", "border-warning", "text-red-900");
+                title.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i> 継続的なリスクがあります';
+                body.innerText = "2ヶ月以上連続して手元資金がマイナスになる予測です。事業継続に重大な影響が出る可能性があります。融資の検討、経費の抜本的な見直しを今すぐ検討してください。";
+                
+                dangerBox.classList.remove('hidden');
+                dangerBox.classList.add('text-red-800', 'border-red-300');
+                dangerText.innerText = `${minusMonths.map(r=>r.month).join('ヶ月目, ')}ヶ月目に資金ショート`;
+            } else {
+                // 単発マイナス
+                card.classList.add("bg-orange-50", "border-caution", "text-orange-900");
+                title.innerHTML = '<i class="fas fa-exclamation-circle text-caution"></i> 資金ショートのリスクがある月があります';
+                body.innerText = "手元資金がマイナスになる月が発生する予測です。一時的な立替資金の確保や、支払サイクルの調整など、早めの対策が必要です。";
+                
+                dangerBox.classList.remove('hidden');
+                dangerBox.classList.add('text-orange-800', 'border-orange-300');
+                dangerText.innerText = `${minusMonths[0].month}ヶ月目に残高が ${minusMonths[0].balance.toLocaleString()} 万円不足`;
+            }
+        }
+
+        // Chart.js 描画
+        function drawChart(results) {
+            const ctx = document.getElementById('cfChart').getContext('2d');
+            const labels = results.map(r => `${r.month}ヶ月目`);
+            const incomeData = results.map(r => r.income);
+            const outcomeData = results.map(r => r.outcome);
+            const balanceData = results.map(r => r.balance);
+
+            if(appState.chartInstance) {
+                appState.chartInstance.destroy();
+            }
+
+            // マイナス残高の色を変えるための配列
+            const balancePointColors = balanceData.map(val => val < 0 ? '#E05C5C' : '#1A3A5C');
+            const balancePointRadius = balanceData.map(val => val < 0 ? 6 : 4);
+
+            appState.chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: '手元資金残高',
+                            data: balanceData,
+                            borderColor: '#1A3A5C',
+                            backgroundColor: '#1A3A5C',
+                            borderWidth: 3,
+                            pointBackgroundColor: balancePointColors,
+                            pointRadius: balancePointRadius,
+                            pointHoverRadius: 8,
+                            yAxisID: 'y1',
+                            fill: false,
+                            tension: 0.1,
+                            zIndex: 10
+                        },
+                        {
+                            type: 'bar',
+                            label: '入金額',
+                            data: incomeData,
+                            backgroundColor: 'rgba(46, 184, 160, 0.8)', // accent color
+                            yAxisID: 'y',
+                            borderRadius: 4
+                        },
+                        {
+                            type: 'bar',
+                            label: '支出額',
+                            data: outcomeData,
+                            backgroundColor: 'rgba(224, 92, 92, 0.8)', // warning color
+                            yAxisID: 'y',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toLocaleString() + ' 万円';
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: getChartTextColor() } },
+                        y: { 
+                            type: 'linear', 
+                            display: true, 
+                            position: 'left', 
+                            title: { display: true, text: '入出金 (万円)', color: getChartTextColor(), font: {size: 12} },
+                            ticks: { color: getChartTextColor() }
+                        },
+                        y1: { 
+                            type: 'linear', 
+                            display: true, 
+                            position: 'right', 
+                            title: { display: true, text: '残高 (万円)', color: getChartTextColor(), font: {size: 12} },
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: getChartTextColor() }
+                        }
+                    }
+                }
+            });
+            
+            // 凡例のテキスト色も適用
+            appState.chartInstance.options.plugins.legend.labels.color = getChartTextColor();
+            appState.chartInstance.update();
+        }
+
+        // Chart.js用のテキストカラー取得（ダークモード対応）
+        function getChartTextColor() {
+            return document.body.classList.contains('dark-mode') ? '#cbd5e1' : '#666666';
+        }
+
+        // サマリーテーブル構築
+        function buildSummaryTable(results) {
+            // ヘッダー生成
+            let thHTML = '';
+            results.forEach(r => {
+                thHTML += `<th class="p-3 border border-gray-300 text-right min-w-[80px]">${r.month}ヶ月</th>`;
+            });
+            document.getElementById('th-months').outerHTML = thHTML; // 直接置換
+
+            const tbody = document.getElementById('summary-tbody');
+            tbody.innerHTML = '';
+            
+            const formatNum = (num) => {
+                if(num === null || num === undefined) return '-';
+                const str = num.toLocaleString();
+                return num < 0 ? `<span class="text-warning font-bold">${str}</span>` : str;
+            };
+
+            // 行データ生成
+            const rows = [
+                { label: '入金合計', init: '-', data: results.map(r=>r.income), bg: '' },
+                { label: '支出合計', init: '-', data: results.map(r=>r.outcome), bg: '' },
+                { label: '月次収支', init: '-', data: results.map(r=>r.income - r.outcome), bg: 'bg-gray-50 font-medium' },
+                { label: '手元資金残高', init: formatNum(appState.data.initialCash), data: results.map(r=>r.balance), bg: 'bg-[#f0f4f8] font-bold text-main border-t-2 border-main' }
+            ];
+
+            rows.forEach(row => {
+                let tdHTML = '';
+                row.data.forEach(val => {
+                    tdHTML += `<td class="p-3 border border-gray-300 text-right ${row.bg}">${formatNum(val)}</td>`;
+                });
+                
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-100 transition-colors">
+                        <td class="p-3 border border-gray-300 bg-gray-50 font-bold text-gray-700">${row.label}</td>
+                        <td class="p-3 border border-gray-300 text-right text-gray-500">${row.init}</td>
+                        ${tdHTML}
+                    </tr>
+                `;
+            });
+        }
+
+        // モーダル制御
+        function openProModal() {
+            const modal = document.getElementById('pro-modal');
+            const content = document.getElementById('pro-modal-content');
+            modal.classList.remove('hidden');
+            // 少し遅らせてアニメーション
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeProModal() {
+            const modal = document.getElementById('pro-modal');
+            const content = document.getElementById('pro-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        /* =========================================
+           追加機能：設定・テーマ・使い方・データ操作
+        ========================================= */
+
+        // 設定ドロップダウンのトグル
+        function toggleSettings(e) {
+            e.stopPropagation();
+            const dropdown = document.getElementById('settings-dropdown');
+            if (dropdown.classList.contains('hidden')) {
+                dropdown.classList.remove('hidden');
+                dropdown.classList.add('dropdown-enter');
+            } else {
+                dropdown.classList.add('hidden');
+                dropdown.classList.remove('dropdown-enter');
+            }
+        }
+
+        // 画面外クリックでドロップダウンを閉じる
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('settings-dropdown');
+            const btn = document.getElementById('settings-btn');
+            if (!dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // テーマの初期化と適用
+        function initTheme() {
+            const isDark = localStorage.getItem('cashflow_sim_theme') === 'dark';
+            const toggle = document.getElementById('theme-toggle');
+            if (isDark) {
+                document.body.classList.add('dark-mode');
+                toggle.checked = true;
+                document.getElementById('theme-label').innerText = 'ダークモード';
+            }
+        }
+
+        // テーマの切り替え
+        function toggleTheme() {
+            const isDark = document.getElementById('theme-toggle').checked;
+            const label = document.getElementById('theme-label');
+            if (isDark) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('cashflow_sim_theme', 'dark');
+                label.innerText = 'ダークモード';
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('cashflow_sim_theme', 'light');
+                label.innerText = 'ライトモード';
+            }
+            
+            // グラフが表示されていれば色を更新
+            if (appState.chartInstance) {
+                appState.chartInstance.options.scales.x.ticks.color = getChartTextColor();
+                appState.chartInstance.options.scales.y.title.color = getChartTextColor();
+                appState.chartInstance.options.scales.y.ticks.color = getChartTextColor();
+                appState.chartInstance.options.scales.y1.title.color = getChartTextColor();
+                appState.chartInstance.options.scales.y1.ticks.color = getChartTextColor();
+                appState.chartInstance.options.plugins.legend.labels.color = getChartTextColor();
+                appState.chartInstance.update();
+            }
+        }
+
+        // 使い方モーダル
+        function openHelpModal() {
+            const modal = document.getElementById('help-modal');
+            const content = document.getElementById('help-modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('help-modal');
+            const content = document.getElementById('help-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        // クリア確認モーダル
+        function confirmClear() {
+            document.getElementById('settings-dropdown').classList.add('hidden');
+            const modal = document.getElementById('clear-modal');
+            const content = document.getElementById('clear-modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeClearModal() {
+            const modal = document.getElementById('clear-modal');
+            const content = document.getElementById('clear-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        // データのクリア実行
+        function executeClearData() {
+            appState.data = {
+                period: 6, industry: '未選択', initialCash: 0,
+                incomeCycle: 1, sales: [], otherIncome: [],
+                paymentCycle: 1, fixedCosts: [], variableCosts: [], debtRepayment: []
+            };
+            initArrays();
+            saveData();
+            syncStateToForm();
+            closeClearModal();
+            goToStep(1); // 最初のステップに戻る
+        }
+
+        // デモデータの読み込み（あえて3ヶ月目でショートするシナリオ）
+        function loadDemoData() {
+            document.getElementById('settings-dropdown').classList.add('hidden');
+            appState.data = {
+                period: 6,
+                industry: '小売業',
+                initialCash: 150, // 初期資金150万
+                incomeCycle: 1,   // 翌月入金
+                sales: [300, 320, 250, 400, 450, 400],
+                otherIncome: [0, 0, 0, 100, 0, 0], // 4ヶ月目に補助金100万
+                paymentCycle: 1,  // 翌月支払
+                fixedCosts: [150, 150, 150, 150, 150, 150],
+                variableCosts: [120, 140, 200, 160, 180, 160], // 3ヶ月目に仕入増大
+                debtRepayment: [50, 50, 50, 50, 50, 50]
+            };
+            initArrays();
+            saveData();
+            syncStateToForm();
+            // 現在のステップを再描画（テーブル更新のため）
+            if(appState.step === 2) generateTable2();
+            if(appState.step === 3) generateTable3();
+            if(appState.step === 4) runSimulation();
+        }
+
+    </script>
+</body>
+</html>
